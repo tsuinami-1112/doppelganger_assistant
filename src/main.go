@@ -36,13 +36,15 @@ func main() {
 	simulate := flag.Bool("s", false, "Card simulation")
 	showVersion := flag.Bool("version", false, "Show program version")
 	gui := flag.Bool("g", false, "Launch GUI")
+	flipper := flag.Bool("f", false, "Export a Flipper Zero file (.rfid, .picopass or .nfc) to copy to its SD card and emulate")
+	flipperDir := flag.String("o", "", "Output directory for -f (default: ~/"+flipperDefaultDir+")")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, Green+"\n--- About Doppelgänger Assistant ---\n"+Reset)
 		fmt.Fprintf(os.Stderr, "Author: @tweathers-sec\n")
 		fmt.Fprintf(os.Stderr, "Version: %s\n", Version)
 		fmt.Fprintf(os.Stderr, "\n")
-		fmt.Fprintf(os.Stderr, Yellow+"Usage: %s -bl <bit length> -fc <facility code> -cn <card number> -t <card type> [-uid <UID>] [-hex <Hex Data>] [-w] [-v] [-s] [-version] [-g] [-c <csv file>]\n"+Reset, os.Args[0])
+		fmt.Fprintf(os.Stderr, Yellow+"Usage: %s -bl <bit length> -fc <facility code> -cn <card number> -t <card type> [-uid <UID>] [-hex <Hex Data>] [-w] [-v] [-s] [-f] [-o <dir>] [-version] [-g] [-c <csv file>]\n"+Reset, os.Args[0])
 		fmt.Fprintf(os.Stderr, "\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\n")
@@ -69,7 +71,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "  %s -uid 5AF70D9D -s -t piv\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\n")
-		fmt.Fprintf(os.Stderr, Green+"Example #3: Launch the application in GUI mode\n"+Reset)
+		fmt.Fprintf(os.Stderr, Green+"Example #4: Export a Flipper Zero file to copy to its SD card and emulate\n"+Reset)
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "  %s -bl 26 -fc 123 -cn 1234 -t prox -f\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, Green+"Example #5: Launch the application in GUI mode\n"+Reset)
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "  %s -g\n", os.Args[0])
 	}
@@ -92,6 +98,11 @@ func main() {
 
 	if *simulate && (*write || *verify) {
 		fmt.Println(Red, "Cannot use -s (simulate) with -w (write) or -v (verify).", Reset)
+		return
+	}
+
+	if *flipper && (*write || *verify || *simulate) {
+		fmt.Println(Red, "Cannot use -f (Flipper export) with -w (write), -v (verify) or -s (simulate).", Reset)
 		return
 	}
 
@@ -166,6 +177,11 @@ func main() {
 				return
 			}
 		}
+	}
+
+	if *flipper {
+		exportFlipperFile(*cardType, *bitLength, *facilityCode, *cardNumber, *hexData, *uid, *flipperDir)
+		return
 	}
 
 	handleCardType(*cardType, *facilityCode, *cardNumber, *bitLength, *write, *verify, *uid, *hexData, *simulate)
