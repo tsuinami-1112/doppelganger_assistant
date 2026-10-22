@@ -77,7 +77,23 @@ Doppelgänger Assistant integrates seamlessly with Doppelgänger RFID hardware a
 
 ![Integrated Write Workflow](https://github.com/tweathers-sec/doppelganger_assistant/blob/main/img/assistant_gui_write.png)
 
+### Flipper Zero Export
+
+Every card type in the Corporate Access Control section can also be saved as a Flipper Zero file instead of being written or simulated with a Proxmark3. Choose **Export Flipper Zero File** as the action in the GUI, or add `-f` on the command line. The file is saved in the Flipper's SD card folder layout, ready to copy over and emulate with the Flipper's 125 kHz RFID or NFC app, or the PicoPass app for iCLASS. See [Exporting cards to a Flipper Zero](#exporting-cards-to-a-flipper-zero) for the file types and steps.
+
 ## Changelog
+
+### Unreleased
+
+**New Features:**
+* Added Flipper Zero export: the **Export Flipper Zero File** action in the GUI and the `-f` / `-o <dir>` flags on the command line save the card as a `.rfid`, `.picopass` or `.nfc` file for the Flipper's SD card, with no Proxmark3 needed
+* PROX, Avigilon and Indala 27/29-bit cards export as HID keys that send the same frame as `lf hid sim -w <format>`; AWID, Indala 26-bit and EM4100 cards use the Flipper's native key types
+* iCLASS cards export as legacy PicoPass files with HID standard keys, their own CSN and an encrypted credential block, ready for the PicoPass app to emulate
+* MIFARE cards export as MIFARE Classic 1K files with the captured UID, and PIV cards as UID-only ISO14443-4A files
+* Each export prints the SD card path, a copy command, where to emulate it on the Flipper and, for LF cards, the Flipper CLI `rfid emulate` command
+
+**Development:**
+* Added Go unit tests for the Wiegand packing, iCLASS key diversification and Flipper file contents, checked against Proxmark3 and Flipper firmware test vectors
 
 ### Version 1.1.2 (December 18, 2025)
 
@@ -631,7 +647,12 @@ Copy the file with an SD card reader or qFlipper's file manager, then emulate it
 | MIFARE | `.nfc` (MIFARE Classic 1K) | `/ext/nfc/` | NFC |
 | PIV | `.nfc` (ISO14443-4A, UID only) | `/ext/nfc/` | NFC |
 
-HID formats are encoded so the Flipper puts the same frame on the air as `lf hid sim -w <format>`. iCLASS files are legacy cards encrypted with the standard transport key; each credential gets its own CSN in HID's range, so readers configured for Elite or SE/Seos keys will not accept them.
+HID formats are encoded so the Flipper puts the same frame on the air as `lf hid sim -w <format>`. A few things to know before relying on an exported file:
+
+* **iCLASS:** files are legacy cards using HID's standard keys and transport encryption, each with its own CSN in HID's range. Readers configured for Elite or SE/Seos keys will not accept them, and emulating them needs the PicoPass app from the Flipper Apps catalog.
+* **Indala 26-bit:** files follow the Flipper's own FC/CN conversion, which stores the Wiegand parity bits in the frame. Proxmark3's default `lf indala clone` sets those two bits differently for roughly half of all FC/CN combinations, so test against the target reader.
+* **PIV:** files emulate the UID only, for readers that send the UID over Wiegand.
+* **Command line:** PROX 28-bit and AWID 50-bit cards export from the GUI; the command line's bit-length checks do not accept them yet.
 
 ## Legal Notice
 
