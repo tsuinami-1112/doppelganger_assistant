@@ -461,7 +461,7 @@ func runGUI() {
 
 	actionLabel := canvas.NewText("ACTION", color.RGBA{R: 169, G: 182, B: 201, A: 255})
 	actionLabel.TextSize = 11
-	action := widget.NewSelect([]string{"Generate Command", "Write & Verify", "Simulate Card"}, nil)
+	action := widget.NewSelect([]string{"Generate Command", "Write & Verify", "Simulate Card", "Export Flipper Zero File"}, nil)
 	action.SetSelectedIndex(1) // Default to "Write & Verify"
 
 	// Update fields based on card type
@@ -501,9 +501,9 @@ func runGUI() {
 		// Update action options based on card type
 		// iCLASS simulation is disabled, so remove that option
 		if selectedType == "iCLASS" {
-			action.Options = []string{"Generate Command", "Write & Verify"}
+			action.Options = []string{"Generate Command", "Write & Verify", "Export Flipper Zero File"}
 		} else {
-			action.Options = []string{"Generate Command", "Write & Verify", "Simulate Card"}
+			action.Options = []string{"Generate Command", "Write & Verify", "Simulate Card", "Export Flipper Zero File"}
 		}
 		// Reset to default selection after updating options
 		if len(action.Options) > 1 {
@@ -676,6 +676,17 @@ func runGUI() {
 				<-done
 
 				WriteStatusSuccess("PM3 command generated")
+				return
+			}
+
+			if actionValue == "Export Flipper Zero File" {
+				WriteStatusInfo("Generating Flipper Zero file...")
+				exportFlipperFile(cardTypeCmd, bl, fc, cn, hexDataValue, uidValue, "")
+
+				w.Close()
+				os.Stdout = oldStdout
+				os.Stderr = oldStderr
+				<-done
 				return
 			}
 

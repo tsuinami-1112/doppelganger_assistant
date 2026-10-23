@@ -13,6 +13,7 @@ A professional GUI application for calculating card data and automating Proxmark
 * **Card Discovery**: Automatically detect card types and read card data
 * **Hotel Access Control**: Complete MIFARE card recovery and analysis tools
 * **Terminal Integration**: Launch Proxmark3 in a separate terminal window
+* **Flipper Zero Export**: Save any supported card as a Flipper Zero file (`.rfid`, `.picopass` or `.nfc`) to copy to its SD card and emulate
 
 ## Quick Install (Recommended)
 
@@ -76,7 +77,23 @@ Doppelgänger Assistant integrates seamlessly with Doppelgänger RFID hardware a
 
 ![Integrated Write Workflow](https://github.com/tweathers-sec/doppelganger_assistant/blob/main/img/assistant_gui_write.png)
 
+### Flipper Zero Export
+
+Every card type in the Corporate Access Control section can also be saved as a Flipper Zero file instead of being written or simulated with a Proxmark3. Choose **Export Flipper Zero File** as the action in the GUI, or add `-f` on the command line. The file is saved in the Flipper's SD card folder layout, ready to copy over and emulate with the Flipper's 125 kHz RFID or NFC app, or the PicoPass app for iCLASS. See [Exporting cards to a Flipper Zero](#exporting-cards-to-a-flipper-zero) for the file types and steps.
+
 ## Changelog
+
+### Unreleased
+
+**New Features:**
+* Added Flipper Zero export: the **Export Flipper Zero File** action in the GUI and the `-f` / `-o <dir>` flags on the command line save the card as a `.rfid`, `.picopass` or `.nfc` file for the Flipper's SD card, with no Proxmark3 needed
+* PROX, Avigilon and Indala 27/29-bit cards export as HID keys that send the same frame as `lf hid sim -w <format>`; AWID, Indala 26-bit and EM4100 cards use the Flipper's native key types
+* iCLASS cards export as legacy PicoPass files with HID standard keys, their own CSN and an encrypted credential block, ready for the PicoPass app to emulate
+* MIFARE cards export as MIFARE Classic 1K files with the captured UID, and PIV cards as UID-only ISO14443-4A files
+* Each export prints the SD card path, a copy command, where to emulate it on the Flipper and, for LF cards, the Flipper CLI `rfid emulate` command
+
+**Development:**
+* Added Go unit tests for the Wiegand packing, iCLASS key diversification and Flipper file contents, checked against Proxmark3 and Flipper firmware test vectors
 
 ### Version 1.1.2 (December 18, 2025)
 
@@ -453,6 +470,7 @@ doppelganger_assistant -g
    - **Generate Only**: Displays Proxmark3 commands for manual execution without writing
    - **Write & Verify**: Writes card data to a blank card and verifies the result
    - **Simulate Card**: Simulates the card using your Proxmark3 device
+   - **Export Flipper Zero File**: Saves the card as a Flipper Zero file under `~/doppelganger_flipper/` (no Proxmark3 needed); see [Exporting cards to a Flipper Zero](#exporting-cards-to-a-flipper-zero)
 5. **Execute**: Click the EXECUTE button to run the operation
 6. **Monitor Output**: 
    - **Status Output** (top panel): Color-coded status messages with operation progress
@@ -594,6 +612,47 @@ Simulation is in progress... If your Proxmark3 has a battery, you can remove the
 
 To end the simulation, press the `pm3 button`.
 ```
+
+#### Exporting cards to a Flipper Zero
+
+The `-f` flag saves the card as a file that the Flipper Zero's own apps load from its SD card, so a captured credential can be emulated with a Flipper instead of a Proxmark3. Files are written to `~/doppelganger_flipper/` (change it with `-o <dir>`) in the same folder layout as the SD card, so the folder's contents can be copied straight onto the card's root.
+
+```sh
+doppelganger_assistant -t prox -bl 26 -fc 123 -cn 4567 -f
+
+|----------- FLIPPER ZERO -----------|
+Saved:    /home/user/doppelganger_flipper/lfrfid/prox_H10301_123_4567.rfid
+SD card:  /ext/lfrfid/prox_H10301_123_4567.rfid
+Copy:     cp "/home/user/doppelganger_flipper/lfrfid/prox_H10301_123_4567.rfid" "<SD card mount>/lfrfid/"
+Emulate:  125 kHz RFID > Saved > prox_H10301_123_4567 > Emulate
+CLI:      rfid emulate H10301 7B11D7
+
+Filetype: Flipper RFID key
+Version: 1
+Key type: H10301
+Data: 7B 11 D7
+```
+
+Copy the file with an SD card reader or qFlipper's file manager, then emulate it from the app shown on the `Emulate` line. For LF cards, the `CLI` line emulates the same card from the Flipper's USB command line without copying anything.
+
+| Card type | Flipper file | SD card folder | Emulate from |
+| --- | --- | --- | --- |
+| PROX 26-bit | `.rfid` (H10301) | `/ext/lfrfid/` | 125 kHz RFID |
+| PROX 28–37-bit, Indala 27/29-bit | `.rfid` (HIDProx) | `/ext/lfrfid/` | 125 kHz RFID |
+| PROX 46/48-bit, Avigilon 56-bit | `.rfid` (HIDExt) | `/ext/lfrfid/` | 125 kHz RFID |
+| AWID 26/50-bit | `.rfid` (AWID) | `/ext/lfrfid/` | 125 kHz RFID |
+| Indala 26-bit | `.rfid` (Indala26) | `/ext/lfrfid/` | 125 kHz RFID |
+| EM4100 / Net2 | `.rfid` (EM4100) | `/ext/lfrfid/` | 125 kHz RFID |
+| iCLASS | `.picopass` (legacy, standard keys) | `/ext/apps_data/picopass/` | PicoPass app (Flipper Apps catalog) |
+| MIFARE | `.nfc` (MIFARE Classic 1K) | `/ext/nfc/` | NFC |
+| PIV | `.nfc` (ISO14443-4A, UID only) | `/ext/nfc/` | NFC |
+
+HID formats are encoded so the Flipper puts the same frame on the air as `lf hid sim -w <format>`. A few things to know before relying on an exported file:
+
+* **iCLASS:** files are legacy cards using HID's standard keys and transport encryption, each with its own CSN in HID's range. Readers configured for Elite or SE/Seos keys will not accept them, and emulating them needs the PicoPass app from the Flipper Apps catalog.
+* **Indala 26-bit:** files follow the Flipper's own FC/CN conversion, which stores the Wiegand parity bits in the frame. Proxmark3's default `lf indala clone` sets those two bits differently for roughly half of all FC/CN combinations, so test against the target reader.
+* **PIV:** files emulate the UID only, for readers that send the UID over Wiegand.
+* **Command line:** PROX 28-bit and AWID 50-bit cards export from the GUI; the command line's bit-length checks do not accept them yet.
 
 ## Legal Notice
 
